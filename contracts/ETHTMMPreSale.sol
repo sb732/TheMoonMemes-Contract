@@ -11,42 +11,28 @@ import "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.so
 
 contract ETHTMMPreSale is Ownable, Pausable, ReentrancyGuard {
     uint256 public totalTokensSold = 0;
-    uint256 public totalTokensSoldWithBonus = 0;
     uint256 public totalUsdRaised = 0;
     uint256 public startTime;
     uint256 public endTime;
     uint256 public claimStart;
     uint256 public constant baseDecimals = (10 ** 18);
     uint256 public maxTokensToBuy = 50_000_000;
-    uint256 public minUsdAmountToBuy = 24900000000000000000;
+    uint256 public minUsdAmountToBuy = 24900000000000000;
     uint256 public currentStage = 0;
     uint256 public checkPoint = 0;
+    uint256 public maxSlippageAmount = 10;
 
     uint256[][3] public stages;
-    uint256[][2] public bonuses = [
-        [uint256(75), 150, 250, 500],
-        [uint256(25), 50, 75, 100]
-    ];
 
     address public saleTokenAdress;
 
-    // ethereum mainnet addresses
-    // IERC20 public USDTInterface =
-    //     IERC20(0xdAC17F958D2ee523a2206206994597C13D831ec7);
-    // AggregatorV3Interface internal priceFeed =
-    //     AggregatorV3Interface(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419);
-
-    // sepolia testnet addresses
     IERC20 public USDTInterface =
-        IERC20(0xaA8E23Fb1079EA71e0a56F48a2aA51851D8433D0);
-    IERC20 public USDCInterface =
         IERC20(0xaA8E23Fb1079EA71e0a56F48a2aA51851D8433D0);
     AggregatorV3Interface internal priceFeed =
         AggregatorV3Interface(0x694AA1769357215DE4FAC081bf1f309aDC325306);
 
     mapping(address => uint256) public userDeposits;
     mapping(address => bool) public hasClaimed;
-    mapping(address => uint256) public userStage;
 
     event SaleTimeSet(uint256 _start, uint256 _end, uint256 timestamp);
     event SaleTimeUpdated(
@@ -58,8 +44,6 @@ contract ETHTMMPreSale is Ownable, Pausable, ReentrancyGuard {
     event TokensBought(
         address indexed user,
         uint256 indexed tokensBought,
-        uint256 bonusTokens,
-        uint256 totalTokens,
         address indexed purchaseToken,
         uint256 amountPaid,
         uint256 usdEq,
@@ -76,6 +60,11 @@ contract ETHTMMPreSale is Ownable, Pausable, ReentrancyGuard {
         uint256 timestamp
     );
     event ClaimStartUpdated(
+        uint256 prevValue,
+        uint256 newValue,
+        uint256 timestamp
+    );
+    event CurrentStageUpdated(
         uint256 prevValue,
         uint256 newValue,
         uint256 timestamp
@@ -142,11 +131,13 @@ contract ETHTMMPreSale is Ownable, Pausable, ReentrancyGuard {
     }
 
     /**
-     * @dev To change bonus data
-     * @param _bonuses New bonus data
+     * @dev To change maxSlippageAmount data
+     * @param _maxSlippageAmount New maxSlippageAmount data
      */
-    function changeBonuses(uint256[][2] memory _bonuses) external onlyOwner {
-        bonuses = _bonuses;
+    function changeMaxSlippageAmount(
+        uint256 _maxSlippageAmount
+    ) external onlyOwner {
+        maxSlippageAmount = _maxSlippageAmount;
     }
 
     /**
@@ -155,14 +146,6 @@ contract ETHTMMPreSale is Ownable, Pausable, ReentrancyGuard {
      */
     function changeUSDTInterface(address _address) external onlyOwner {
         USDTInterface = IERC20(_address);
-    }
-
-    /**
-     * @dev To change USDC interface
-     * @param _address Address of the USDC interface
-     */
-    function changeUSDCInterface(address _address) external onlyOwner {
-        USDCInterface = IERC20(_address);
     }
 
     /**
@@ -216,26 +199,6 @@ contract ETHTMMPreSale is Ownable, Pausable, ReentrancyGuard {
     }
 
     /**
-     * @dev To calculate rewards in CHMPZ coin for given amount of tokens and usd price.
-     * @param _amount No of tokens
-     * @param _usdAmount usd price
-     */
-    function calculateBonus(
-        uint256 _amount,
-        uint256 _usdAmount
-    ) public view returns (uint256) {
-        uint256 bonusCoins;
-        require(_usdAmount >= minUsdAmountToBuy, "Min usd not reached");
-        for (uint i = bonuses[0].length; i > 0; i--) {
-            if (_usdAmount >= (bonuses[0][i - 1] * baseDecimals)) {
-                bonusCoins = ((bonuses[1][i - 1] * 100) * _amount) / 10_000;
-                break;
-            } else bonusCoins = 0;
-        }
-        return bonusCoins;
-    }
-
-    /**
      * @dev To update the sale times
      * @param _startTime New start time
      * @param _endTime New end time
@@ -285,29 +248,7 @@ contract ETHTMMPreSale is Ownable, Pausable, ReentrancyGuard {
         uint256 amount
     ) external checkSaleState(amount) whenNotPaused returns (bool) {
         uint256 usdPrice = calculatePrice(amount);
-        uint256 bonusCoins = calculateBonus(amount, usdPrice);
-        uint256 newAmount = amount + bonusCoins;
-        totalTokensSold += amount;
-        totalTokensSoldWithBonus += newAmount;
-        if (
-            usdPrice >= (bonuses[0][0] * baseDecimals) &&
-            userStage[_msgSender()] == 0
-        ) userStage[_msgSender()] = currentStage + 1;
-        if (checkPoint != 0) checkPoint += amount;
-        uint256 total = totalTokensSold > checkPoint
-            ? totalTokensSold
-            : checkPoint;
-        if (
-            total > stages[0][currentStage] ||
-            block.timestamp >= stages[2][currentStage]
-        ) {
-            if (block.timestamp >= stages[2][currentStage]) {
-                checkPoint = stages[0][currentStage] + amount;
-            }
-            currentStage += 1;
-        }
-        userDeposits[_msgSender()] += (newAmount * baseDecimals);
-        totalUsdRaised += usdPrice;
+
         uint256 ourAllowance = USDTInterface.allowance(
             _msgSender(),
             address(this)
@@ -323,35 +264,8 @@ contract ETHTMMPreSale is Ownable, Pausable, ReentrancyGuard {
             )
         );
         require(success, "Token payment failed");
-        emit TokensBought(
-            _msgSender(),
-            amount,
-            bonusCoins,
-            newAmount,
-            address(USDTInterface),
-            usdPrice,
-            usdPrice,
-            block.timestamp
-        );
-        return true;
-    }
 
-    /**
-     * @dev To buy into a presale using USDC
-     * @param amount No of tokens to buy
-     */
-    function buyWithUSDC(
-        uint256 amount
-    ) external checkSaleState(amount) whenNotPaused returns (bool) {
-        uint256 usdPrice = calculatePrice(amount);
-        uint256 bonusCoins = calculateBonus(amount, usdPrice);
-        uint256 newAmount = amount + bonusCoins;
         totalTokensSold += amount;
-        totalTokensSoldWithBonus += newAmount;
-        if (
-            usdPrice >= (bonuses[0][0] * baseDecimals) &&
-            userStage[_msgSender()] == 0
-        ) userStage[_msgSender()] = currentStage + 1;
         if (checkPoint != 0) checkPoint += amount;
         uint256 total = totalTokensSold > checkPoint
             ? totalTokensSold
@@ -364,29 +278,19 @@ contract ETHTMMPreSale is Ownable, Pausable, ReentrancyGuard {
                 checkPoint = stages[0][currentStage] + amount;
             }
             currentStage += 1;
+
+            emit CurrentStageUpdated(
+                currentStage - 1,
+                currentStage,
+                block.timestamp
+            );
         }
-        userDeposits[_msgSender()] += (newAmount * baseDecimals);
+        userDeposits[_msgSender()] += (amount * baseDecimals);
         totalUsdRaised += usdPrice;
-        uint256 ourAllowance = USDCInterface.allowance(
-            _msgSender(),
-            address(this)
-        );
-        uint256 price = usdPrice / (10 ** 12);
-        require(price <= ourAllowance, "Not enough allowance");
-        (bool success, ) = address(USDCInterface).call(
-            abi.encodeWithSignature(
-                "transferFrom(address,address,uint256)",
-                _msgSender(),
-                owner(),
-                price
-            )
-        );
-        require(success, "Token payment failed");
+
         emit TokensBought(
             _msgSender(),
             amount,
-            bonusCoins,
-            newAmount,
             address(USDTInterface),
             usdPrice,
             usdPrice,
@@ -396,11 +300,47 @@ contract ETHTMMPreSale is Ownable, Pausable, ReentrancyGuard {
     }
 
     /**
-     * @dev To buy into a presale using ETH
+     * @dev To calculate the amount of tokens buyable with given ETH amount
+     * @param ethAmount ETH amount in wei
+     */
+    function calculateAmount(uint256 ethAmount) public view returns (uint256) {
+        uint256 ethPriceInUsd = (ethAmount * getLatestPrice()) / baseDecimals;
+
+        uint256 total = checkPoint == 0 ? totalTokensSold : checkPoint;
+        uint256 remainingTokensInStage = stages[0][currentStage] - total;
+        uint256 usdAmountForRemainingTokens = remainingTokensInStage *
+            stages[1][currentStage];
+
+        uint256 tokenAmount;
+
+        if (
+            ethPriceInUsd > usdAmountForRemainingTokens ||
+            block.timestamp >= stages[2][currentStage]
+        ) {
+            require(currentStage < (stages[0].length - 1), "Not valid");
+            if (block.timestamp >= stages[2][currentStage]) {
+                tokenAmount = ethPriceInUsd / stages[1][currentStage + 1];
+            } else {
+                tokenAmount =
+                    remainingTokensInStage +
+                    (ethPriceInUsd - usdAmountForRemainingTokens) /
+                    stages[1][currentStage + 1];
+            }
+        } else {
+            tokenAmount = ethPriceInUsd / stages[1][currentStage];
+        }
+
+        return tokenAmount;
+    }
+
+    /**
+     * @dev To buy into a presale using ETH with slippage
      * @param amount No of tokens to buy
+     * @param slippage Acceptable slippage percentage (0-100)
      */
     function buyWithEth(
-        uint256 amount
+        uint256 amount,
+        uint256 slippage
     )
         external
         payable
@@ -409,19 +349,22 @@ contract ETHTMMPreSale is Ownable, Pausable, ReentrancyGuard {
         nonReentrant
         returns (bool)
     {
-        uint256 usdPrice = calculatePrice(amount);
-        uint256 ethAmount = (usdPrice * baseDecimals) / getLatestPrice();
-        require(msg.value >= ethAmount, "Less payment");
-        uint256 bonusCoins = calculateBonus(amount, usdPrice);
-        uint256 newAmount = amount + bonusCoins;
-        uint256 excess = msg.value - ethAmount;
-        totalTokensSold += amount;
-        totalTokensSoldWithBonus += newAmount;
-        if (
-            usdPrice >= (bonuses[0][0] * baseDecimals) &&
-            userStage[_msgSender()] == 0
-        ) userStage[_msgSender()] = currentStage + 1;
-        if (checkPoint != 0) checkPoint += amount;
+        require(amount <= maxTokensToBuy, "Amount exceeds max tokens to buy");
+        require(slippage >= 0, "Slippage must bigger than 0");
+        require(slippage <= maxSlippageAmount, "MaxSlippageAmount exceeds");
+
+        uint256 ethAmount = msg.value;
+        uint256 calculatedAmount = calculateAmount(ethAmount);
+        require(
+            calculatedAmount >= (amount * (100 - slippage)) / 100,
+            "Slippage tolerance exceeded"
+        );
+        uint256 usdPrice = (ethAmount * getLatestPrice()) / baseDecimals;
+
+        sendValue(payable(owner()), ethAmount);
+
+        totalTokensSold += calculatedAmount;
+        if (checkPoint != 0) checkPoint += calculatedAmount;
         uint256 total = totalTokensSold > checkPoint
             ? totalTokensSold
             : checkPoint;
@@ -430,19 +373,22 @@ contract ETHTMMPreSale is Ownable, Pausable, ReentrancyGuard {
             block.timestamp >= stages[2][currentStage]
         ) {
             if (block.timestamp >= stages[2][currentStage]) {
-                checkPoint = stages[0][currentStage] + amount;
+                checkPoint = stages[0][currentStage] + calculatedAmount;
             }
             currentStage += 1;
+
+            emit CurrentStageUpdated(
+                currentStage - 1,
+                currentStage,
+                block.timestamp
+            );
         }
-        userDeposits[_msgSender()] += (newAmount * baseDecimals);
+        userDeposits[_msgSender()] += (calculatedAmount * baseDecimals);
         totalUsdRaised += usdPrice;
-        sendValue(payable(owner()), ethAmount);
-        if (excess > 0) sendValue(payable(_msgSender()), excess);
+
         emit TokensBought(
             _msgSender(),
-            amount,
-            bonusCoins,
-            newAmount,
+            calculatedAmount,
             address(0),
             ethAmount,
             usdPrice,
@@ -473,7 +419,7 @@ contract ETHTMMPreSale is Ownable, Pausable, ReentrancyGuard {
             "Invalid claim start time"
         );
         require(
-            noOfTokens >= (totalTokensSoldWithBonus * baseDecimals),
+            noOfTokens >= (totalTokensSold * baseDecimals),
             "Tokens less than sold"
         );
         require(_saleTokenAdress != address(0), "Zero token address");
@@ -524,11 +470,13 @@ contract ETHTMMPreSale is Ownable, Pausable, ReentrancyGuard {
     }
 
     /**
-     * @dev To manualy increment stage
+     * @dev To manualy change stage
      */
-    function incrementCurrentStage() external onlyOwner {
-        currentStage++;
-        checkPoint = stages[0][currentStage];
+    function changeCurrentStage(uint256 _currentStage) external onlyOwner {
+        if (_currentStage > 0) {
+            checkPoint = stages[0][_currentStage - 1];
+        }
+        currentStage = _currentStage;
     }
 
     /**
@@ -538,22 +486,10 @@ contract ETHTMMPreSale is Ownable, Pausable, ReentrancyGuard {
         return stages;
     }
 
-    /**
-     * @dev Helper funtion to get bonus information
-     */
-    function getBonuses() external view returns (uint256[][2] memory) {
-        return bonuses;
-    }
-
     function manualBuy(address _to, uint256 amount) external onlyOwner {
         uint256 usdPrice = calculatePrice(amount);
-        uint256 bonusCoins = calculateBonus(amount, usdPrice);
-        uint256 newAmount = amount + bonusCoins;
         totalTokensSold += amount;
-        totalTokensSoldWithBonus += newAmount;
-        if (usdPrice >= (bonuses[0][0] * baseDecimals) && userStage[_to] == 0)
-            userStage[_to] = currentStage + 1;
-        userDeposits[_to] += (newAmount * baseDecimals);
+        userDeposits[_to] += (amount * baseDecimals);
         totalUsdRaised += usdPrice;
     }
 }

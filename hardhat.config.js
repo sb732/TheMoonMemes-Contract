@@ -18,13 +18,23 @@ module.exports = {
   defaultNetwork: "binanceTest",
   networks: {
     hardhat: {},
+    ethereum: {
+      url: "https://mainnet.infura.io/v3/" + INFURA_ID,
+      chainId: 1,
+      accounts: [`0x${PRIVATE_KEY}`],
+    },
+    binance: {
+      url: "https://bsc-dataseed.binance.org/",
+      chainId: 56,
+      accounts: [`0x${PRIVATE_KEY}`],
+    },
     sepolia: {
       url: "https://ethereum-sepolia.rpc.subquery.network/public/",
       chainId: 11155111,
       accounts: [`0x${PRIVATE_KEY}`],
     },
     binanceTest: {
-      url: "https://data-seed-prebsc-1-s1.binance.org:8545/",
+      url: "https://bsc-testnet-rpc.publicnode.com/",
       chainId: 97,
       accounts: [`0x${PRIVATE_KEY}`],
     },
@@ -47,9 +57,9 @@ module.exports = {
     },
   },
   etherscan: {
-    //  apiKey: ETHERSCAN_API_KEY,
-    apiKey: BSCSCAN_API_KEY,
-    //  apiKey: POLYGONSCAN_API_KEY,
+    apiKey: ETHERSCAN_API_KEY,
+    // apiKey: BSCSCAN_API_KEY,
+    // apiKey: POLYGONSCAN_API_KEY,
   },
   solidity: {
     version: "0.8.20",
