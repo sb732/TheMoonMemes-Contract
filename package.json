@@ -2,7 +2,8 @@
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.5",
     "@nomiclabs/hardhat-etherscan": "^3.0.3",
-    "hardhat": "^2.22.5"
+    "hardhat": "^2.22.5",
+    "hardhat-contract-sizer": "^2.10.0"
   },
   "dependencies": {
     "@chainlink/contracts": "^1.1.1",

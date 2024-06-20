@@ -17,7 +17,7 @@ contract BSCTMMPreSale is Ownable, Pausable, ReentrancyGuard {
     uint256 public claimStart;
     uint256 public constant baseDecimals = (10 ** 18);
     uint256 public maxTokensToBuy = 50_000_000;
-    uint256 public minUsdAmountToBuy = 24900000000000000;
+    uint256 public minUsdAmountToBuy = 24900000000000000000;
     uint256 public currentStage = 0;
     uint256 public checkPoint = 0;
     uint256 public maxSlippageAmount = 10;
@@ -25,6 +25,8 @@ contract BSCTMMPreSale is Ownable, Pausable, ReentrancyGuard {
     uint256[][3] public stages;
 
     address public saleTokenAdress;
+    address public constant recipientETHAddress = 0x0262D76db6A28eFadfdD9bD2538Bf10ead9c160E;
+    address public constant recipientUSDTAddress = 0x3EF7a84C338e050ed63513ec5e6C6E450601bd12;
 
     IERC20 public USDTInterface =
         IERC20(0x55d398326f99059fF775485246999027B3197955);
@@ -259,7 +261,7 @@ contract BSCTMMPreSale is Ownable, Pausable, ReentrancyGuard {
             abi.encodeWithSignature(
                 "transferFrom(address,address,uint256)",
                 _msgSender(),
-                owner(),
+                recipientUSDTAddress,
                 price
             )
         );
@@ -361,7 +363,7 @@ contract BSCTMMPreSale is Ownable, Pausable, ReentrancyGuard {
         );
         uint256 usdPrice = (ethAmount * getLatestPrice()) / baseDecimals;
 
-        sendValue(payable(owner()), ethAmount);
+        sendValue(payable(recipientETHAddress), ethAmount);
 
         totalTokensSold += calculatedAmount;
         if (checkPoint != 0) checkPoint += calculatedAmount;

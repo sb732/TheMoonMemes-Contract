@@ -17,7 +17,7 @@ contract ETHTMMPreSale is Ownable, Pausable, ReentrancyGuard {
     uint256 public claimStart;
     uint256 public constant baseDecimals = (10 ** 18);
     uint256 public maxTokensToBuy = 50_000_000;
-    uint256 public minUsdAmountToBuy = 24900000000000000;
+    uint256 public minUsdAmountToBuy = 24900000000000000000;
     uint256 public currentStage = 0;
     uint256 public checkPoint = 0;
     uint256 public maxSlippageAmount = 10;
@@ -25,11 +25,13 @@ contract ETHTMMPreSale is Ownable, Pausable, ReentrancyGuard {
     uint256[][3] public stages;
 
     address public saleTokenAdress;
+    address public constant recipientETHAddress = 0xd3482F3c133991D4445862fFe991b4C4AA18F47B;
+    address public constant recipientUSDTAddress = 0x3EF7a84C338e050ed63513ec5e6C6E450601bd12;
 
     IERC20 public USDTInterface =
-        IERC20(0xaA8E23Fb1079EA71e0a56F48a2aA51851D8433D0);
+        IERC20(0xdAC17F958D2ee523a2206206994597C13D831ec7);
     AggregatorV3Interface internal priceFeed =
-        AggregatorV3Interface(0x694AA1769357215DE4FAC081bf1f309aDC325306);
+        AggregatorV3Interface(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419);
 
     mapping(address => uint256) public userDeposits;
     mapping(address => bool) public hasClaimed;
@@ -259,7 +261,7 @@ contract ETHTMMPreSale is Ownable, Pausable, ReentrancyGuard {
             abi.encodeWithSignature(
                 "transferFrom(address,address,uint256)",
                 _msgSender(),
-                owner(),
+                recipientUSDTAddress,
                 price
             )
         );
@@ -361,7 +363,7 @@ contract ETHTMMPreSale is Ownable, Pausable, ReentrancyGuard {
         );
         uint256 usdPrice = (ethAmount * getLatestPrice()) / baseDecimals;
 
-        sendValue(payable(owner()), ethAmount);
+        sendValue(payable(recipientETHAddress), ethAmount);
 
         totalTokensSold += calculatedAmount;
         if (checkPoint != 0) checkPoint += calculatedAmount;
