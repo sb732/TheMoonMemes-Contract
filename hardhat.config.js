@@ -57,8 +57,8 @@ module.exports = {
     },
   },
   etherscan: {
-    apiKey: ETHERSCAN_API_KEY,
-    // apiKey: BSCSCAN_API_KEY,
+    // apiKey: ETHERSCAN_API_KEY,
+    apiKey: BSCSCAN_API_KEY,
     // apiKey: POLYGONSCAN_API_KEY,
   },
   solidity: {
